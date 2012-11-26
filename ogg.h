@@ -32,6 +32,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 /**
  * ogg_error_codes:
@@ -82,7 +83,7 @@ typedef struct ogg_page {
 	uint8_t version;
 	uint8_t type;
 	uint8_t *data;
-	long offset;
+	off_t offset;
 } ogg_page;
 
 typedef struct ogg_packet_page {
@@ -94,6 +95,20 @@ typedef struct ogg_packet {
 	uint64_t data_len;
 	ogg_packet_page first;
 } ogg_packet;
+
+typedef struct ogg_stream ogg_stream;
+
+typedef struct ogg_stream_io_functions {
+	size_t (*read)(ogg_stream *stream, uint8_t *buffer, size_t len);
+	size_t (*write)(ogg_stream *stream, const uint8_t *buffer, size_t len);
+	off_t (*tell)(ogg_stream *stream);
+	int (*seek)(ogg_stream *stream, off_t offset);
+} ogg_stream_io_functions;
+
+struct ogg_stream {
+	ogg_stream_io_functions *io;
+	void *priv;
+};
 
 /**
  * ogg_error:
@@ -157,5 +172,25 @@ void ogg_packet_init(ogg_packet *packet);
  * Free memory internally allocated for the Ogg packet, and reinitialize.
  */
 void ogg_packet_clear(ogg_packet *packet);
+
+/**
+ * ogg_stream_file_open:
+ * @filename: The path to a local ogg file
+ *
+ * Open a local file for use with the ogg packet api
+ *
+ * Returns: A newly allocated #ogg_stream, which must be freed with
+ * ogg_stream_file_close()
+ */
+ogg_stream *ogg_stream_file_open(const char *filename);
+
+/**
+ * ogg_stream_file_close:
+ * @stream: The #ogg_stream to close and free
+ *
+ * Close an ogg stream opened with ogg_stream_file_open() and free allocated
+ * memory
+ */
+void ogg_stream_file_close(ogg_stream *stream);
 
 #endif

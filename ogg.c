@@ -297,3 +297,30 @@ void ogg_packet_clear(ogg_packet *packet) {
 
 int ogg_packet_read(ogg_packet *packet) {
 }
+
+static size_t ogg_stream_file_read(ogg_stream *stream, uint8_t *buffer, size_t len) {
+	FILE *file = stream->priv;
+	return fread(buffer, sizeof (uint8_t), len, file);
+}
+
+static size_t ogg_stream_file_write(ogg_stream *stream, const uint8_t *buffer, size_t len) {
+	FILE *file = stream->priv;
+	return fwrite(buffer, sizeof (uint8_t), len, file);
+}
+
+static off_t ogg_stream_file_tell(ogg_stream *stream) {
+	FILE *file = stream->priv;
+	return ftello(file);
+}
+
+static int ogg_stream_file_seek(ogg_stream *stream, off_t offset) {
+	FILE *file = stream->priv;
+	return fseeko(file, offset, SEEK_SET);
+}
+
+static ogg_stream_io_functions ogg_stream_file_functions = {
+	ogg_stream_file_read,
+	ogg_stream_file_write,
+	ogg_stream_file_tell,
+	ogg_stream_file_seek
+};

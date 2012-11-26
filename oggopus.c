@@ -30,6 +30,8 @@ static const uint8_t OGGOPUS_TAGS_MAGIC[] = {
 };
 
 int oggopus_recognize(const ogg_page *page) {
+	if (!(page->type & OGG_PAGE_TYPE_BOS))
+		return -1;
 	if (page->data_len < OGGOPUS_HEAD_LENGTH)
 		return -1;
 	return memcmp(page->data, OGGOPUS_HEAD_MAGIC, sizeof (OGGOPUS_HEAD_MAGIC));
