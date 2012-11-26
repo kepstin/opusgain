@@ -13,6 +13,20 @@
  * GNU General Public License for more details.
  */
 
+/**
+ * SECTION:ogg
+ * @short_description: A miniature non-conformant ogg library
+ * @title: Ogg
+ *
+ * This library code handles parsing and in-place modification of a limited
+ * subset of Ogg streams stored in local files, such as Ogg files containing
+ * a single audio logical stream.
+ *
+ * The purpose of this code is to allow writing an application that can modify
+ * stream header packets without requiring that the file be completely
+ * re-written, such as would be requires with the official libogg.
+ */
+
 #ifndef OGG_H
 #define OGG_H
 
@@ -23,10 +37,14 @@
  * ogg_error_codes:
  * @OGG_SUCCESS: Everything is fine
  * @OGG_INVALID: An incoming Ogg stream contains invalid data
+ * @OGG_MULTISTREAM: The Ogg container contains multiple streams
+ * @OGG_BAD_SIZE: An #ogg_page contains a data amount that isn't allowed by spec
  */
 typedef enum {
 	OGG_SUCCESS = 0,
-	OGG_INVALID
+	OGG_INVALID,
+	OGG_MULTI_STREAM,
+	OGG_BAD_SIZE,
 } ogg_error_codes;
 
 /**
@@ -67,12 +85,38 @@ typedef struct ogg_page {
 	long offset;
 } ogg_page;
 
+typedef struct ogg_packet_page {
+	ogg_page page;
+	struct ogg_packet_page *next;
+} ogg_packet_page;
+
+typedef struct ogg_packet {
+	uint64_t data_len;
+	ogg_packet_page first;
+} ogg_packet;
+
 /**
  * ogg_error:
  * 
  * A human-readable string error from the last failed Ogg function
  */
 extern const char *ogg_error;
+
+/**
+ * ogg_page_init:
+ * @page: An uninitialized #ogg_page structure
+ *
+ * Initialize a previously unused #ogg_page structure
+ */
+void ogg_page_init(ogg_page *page);
+
+/**
+ * ogg_page_clear:
+ * @page: A previously-used #ogg_page structure
+ *
+ * Free memory internally allocated for the Ogg page, and reinitialize.
+ */
+void ogg_page_clear(ogg_page *page);
 
 /**
  * ogg_page_read:
@@ -85,5 +129,33 @@ extern const char *ogg_error;
  * will contain a message
  */
 int ogg_page_read(ogg_page *page, FILE *file);
+
+/**
+ * ogg_page_write:
+ * @page: An #ogg_page structure to write to a file
+ * @file: The file to write the Ogg page to
+ *
+ * Write the contents of an Ogg page to a file
+ *
+ * Returns: 0 on success, otherwise a value from #ogg_error_codes and #ogg_error
+ * will contain a message
+ */
+int ogg_page_write(const ogg_page *page, FILE *file);
+
+/**
+ * ogg_packet_init:
+ * @packet: An uninitialized #ogg_packet structure
+ *
+ * Initialize a previously unused #ogg_page structure
+ */
+void ogg_packet_init(ogg_packet *packet);
+
+/**
+ * ogg_packet_clear:
+ * @packet: A previously-used #ogg_packet structure
+ *
+ * Free memory internally allocated for the Ogg packet, and reinitialize.
+ */
+void ogg_packet_clear(ogg_packet *packet);
 
 #endif

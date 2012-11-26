@@ -25,6 +25,8 @@
 /* Maximum number of segments that can be in an Ogg page */
 #define OGG_PAGE_MAX_SEGMENTS 255
 
+#define OGG_GRANULE_POS_NO_PACKET 0xffffffffffffffff
+
 /* The 'OggS' sync indicator for Ogg pages */
 static const uint8_t OGG_PAGE_MAGIC[] = {
 	0x4f, 0x67, 0x67, 0x53
@@ -116,6 +118,16 @@ static uint32_t ogg_page_checksum(
 	return crc_reg;
 }
 
+void ogg_page_init(ogg_page *page) {
+	memset(page, 0, sizeof (ogg_page));
+	page->offset = -1;
+}
+
+void ogg_page_clear(ogg_page *page) {
+	if (page->data)
+		free(page->data);
+	ogg_page_init(page);
+}
 
 int ogg_page_read(ogg_page *page, FILE *file) {
 	size_t read;
@@ -124,8 +136,10 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 	uint8_t page_header[OGG_PAGE_HEADER_SIZE + OGG_PAGE_MAX_SEGMENTS];
 	uint8_t segments;
 	
+	/* Save the current file offset (for in-place rewrites) */
 	page->offset = ftell(file);
 	
+	/* Read the first (fixed) part of the page header */
 	read = fread(page_header, 1, OGG_PAGE_HEADER_SIZE, file);
 	if (read < OGG_PAGE_HEADER_SIZE) {
 		ogg_error = "Error reading page header";
@@ -133,12 +147,14 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 		goto error;
 	}
 	
-	if (memcmp(page_header, OGG_PAGE_MAGIC, sizeof (OGG_PAGE_MAGIC))) {
+	/* Check synchronization */
+	if (memcmp(page_header, OGG_PAGE_MAGIC, 4)) {
 		ogg_error = "Page signature does not match";
 		err = OGG_INVALID;
 		goto error;
 	}
 	
+	/* Parse fixed header data fields */
 	page->version = page_header[4];
 	page->type = page_header[5];
 	page->granule_pos = read_le64(&page_header[6]);
@@ -147,6 +163,7 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 	crc32 = read_le32(&page_header[22]);
 	segments = page_header[26];
 	
+	/* Read in the segment table */
 	read = fread(&page_header[OGG_PAGE_HEADER_SIZE], 1, segments, file);
 	if (read < segments) {
 		ogg_error = "Error reading segment table";
@@ -154,13 +171,14 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 		goto error;
 	}
 	
+	/* Parse data length from the segment table */
 	page->data_len = 0;
 	for (i = 0; i < segments; i++) {
 		page->data_len += page_header[OGG_PAGE_HEADER_SIZE + i];
 	}
 	
+	/* Read in the packet data */
 	page->data = malloc(page->data_len);
-	
 	read = fread(page->data, 1, page->data_len, file);
 	if (read < page->data_len) {
 		ogg_error = "Error reading page data";
@@ -168,9 +186,8 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 		goto error;
 	}
 	
-	/* Blank out the crc32 field for verifying checksum */
-	write_le32(&page_header[22], 0);
-	
+	/* Verify the page checksum */
+	write_le32(&page_header[22], 0); /* CRC32 field must be blank */
 	if (crc32 != ogg_page_checksum(page_header, segments, page)) {
 		ogg_error = "Checksum mismatch";
 		err = OGG_INVALID;
@@ -186,4 +203,97 @@ error:
 	}
 
 	return err;
+}
+
+int ogg_page_write(const ogg_page *page, FILE *file)
+{
+	int err;
+	uint8_t page_header[OGG_PAGE_HEADER_SIZE + OGG_PAGE_MAX_SEGMENTS];
+	uint8_t segments = 0;
+	uint16_t data_len;
+	uint32_t crc32;
+	
+	/* Do some basic sanity checks on the data size */
+	if (page->granule_pos == OGG_GRANULE_POS_NO_PACKET) {
+		if (page->data_len > 255*255) {
+			ogg_error = "Continuing Ogg page can hold max 255*255 bytes";
+			err = OGG_BAD_SIZE;
+			goto error;
+		}
+	} else {
+		if (page->data_len > 255*255 - 1) {
+			ogg_error = "Non-continuing Ogg page can hold max 255*255 - 1 bytes";
+			err = OGG_BAD_SIZE;
+			goto error;
+		}
+	}
+	
+	/* Fill in the basic header fields */
+	memcpy(page_header, OGG_PAGE_MAGIC, 4);
+	page_header[4] = page->version;
+	page_header[5] = page->type;
+	write_le64(&page_header[6], page->granule_pos);
+	write_le32(&page_header[14], page->serial);
+	write_le32(&page_header[18], page->seq);
+	write_le32(&page_header[22], 0); /* CRC32 field will be filled in later */
+	
+	/* Generate the segment lacing values */
+	data_len = page->data_len;
+	while (data_len >= 255) {
+		page_header[OGG_PAGE_HEADER_SIZE + segments] = 0xff;
+		segments++;
+		data_len -= 255;
+	}
+	if (page->granule_pos == OGG_GRANULE_POS_NO_PACKET) {
+		if (data_len > 0) {
+			ogg_error = "Continuing Ogg page must contain a multiple of 255 bytes";
+			err = OGG_BAD_SIZE;
+			goto error;
+		}
+	} else {
+		page_header[OGG_PAGE_HEADER_SIZE + segments] = data_len;
+		segments++;
+	}
+	page_header[26] = segments;
+	
+	/* Compute the final checksum */
+	crc32 = ogg_page_checksum(page_header, segments, page);
+	write_le32(&page_header[22], crc32);
+	
+	/* Write the page header and data */
+	fwrite(page_header, 1, OGG_PAGE_HEADER_SIZE + segments, file);
+	fwrite(page->data, 1, page->data_len, file);
+	
+	return OGG_SUCCESS;
+
+error:
+	return err;
+}
+
+void ogg_packet_init(ogg_packet *packet) {
+	packet->data_len = 0;
+	ogg_page_init(&packet->first.page);
+	packet->first.next = NULL;
+}
+
+void ogg_packet_clear(ogg_packet *packet) {
+	/* Need to clear the entire page chain if there are multiple pages */
+	if (packet->first.next) {
+		ogg_packet_page *current = packet->first.next;
+		do {
+			ogg_packet_page *next = current->next;
+			
+			ogg_page_clear(&current->page);
+			free(current);
+			
+			current = next;
+		} while (current);
+	}
+	
+	packet->data_len = 0;
+	ogg_page_clear(&packet->first.page);
+	packet->first.next = NULL;
+}
+
+int ogg_packet_read(ogg_packet *packet) {
 }

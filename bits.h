@@ -39,9 +39,20 @@ static inline uint64_t read_le64(const uint8_t *in) {
 
 static inline void write_le32(uint8_t *out, uint32_t in) {
 	out[0] = in & 0xff;
-	out[1] = (in & 0xff00) >> 8;
-	out[2] = (in & 0xff0000) >> 16;
-	out[3] = (in & 0xff000000) >> 24;
+	out[1] = (in >> 8) & 0xff;
+	out[2] = (in >> 16) & 0xff;
+	out[3] = (in >> 24) & 0xff;
+}
+
+static inline void write_le64(uint8_t *out, uint64_t in) {
+	out[0] = in & 0xff;
+	out[1] = (in >> 8) & 0xff;
+	out[2] = (in >> 16) & 0xff;
+	out[3] = (in >> 24) & 0xff;
+	out[4] = (in >> 32) & 0xff;
+	out[5] = (in >> 40) & 0xff;
+	out[6] = (in >> 48) & 0xff;
+	out[7] = (in >> 56) & 0xff;
 }
 
 #endif

@@ -16,4 +16,16 @@
 #ifndef OGGOPUS_H
 #define OGGOPUS_H
 
+typedef struct ogg_page ogg_page;
+
+/**
+ * oggopus_recognize:
+ * @page: An Ogg Opus page containing a possible OggOpus stream first packet
+ *
+ * Check if the Ogg page is the start of an OggOpus stream
+ *
+ * Returns: 0 if the stream appears to be OggOpus
+ */
+int oggopus_recognize(const ogg_page *page);
+
 #endif

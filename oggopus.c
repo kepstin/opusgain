@@ -13,10 +13,24 @@
  * GNU General Public License for more details.
  */
 
+#include "oggopus.h"
+#include "ogg.h"
+
+#include <stdint.h>
+#include <string.h>
+
 static const uint8_t OGGOPUS_HEAD_MAGIC[] = {
 	0x4f, 0x70, 0x75, 0x73, 0x48, 0x65, 0x61, 0x64
 };
 
+#define OGGOPUS_HEAD_LENGTH 19
+
 static const uint8_t OGGOPUS_TAGS_MAGIC[] = {
 	0x4f, 0x70, 0x75, 0x73, 0x54, 0x61, 0x67, 0x73
+};
+
+int oggopus_recognize(const ogg_page *page) {
+	if (page->data_len < OGGOPUS_HEAD_LENGTH)
+		return -1;
+	return memcmp(page->data, OGGOPUS_HEAD_MAGIC, sizeof (OGGOPUS_HEAD_MAGIC));
 }
