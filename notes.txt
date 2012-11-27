@@ -4,9 +4,14 @@ EBU R128 reference level: -23 LUFS
 So, ReplayGain is 5 dB louder than R128.
 
 Plan:
-* Store R128 album gain in stream header gain field
-* Store R128 track gain in R128_TRACK_GAIN field, relative to R128 album gain
-* Store ReplayGain album gain in REPLAYGAIN_ALBUM_GAIN field, relative to R128
-  album gain
-* Store ReplayGain track gain in REPLAYGAIN_TRACK_GAIN field, relative to R128
-  track gain
+* Optionally store R128 album gain in stream header gain field
+  (If this is disabled, header gain field will be left unmodified)
+* Store R128 album gain in R128_ALBUM_GAIN comment, relative to stream header
+  gain (Note that if the stream header contains the album gain, this tag will
+  contain an adjustment of 0 dB)
+* Store R128 track gain in R128_TRACK_GAIN comment, relative to stream header
+  gain
+* Store ReplayGain album gain in REPLAYGAIN_ALBUM_GAIN field, relative to
+  stream header gain
+* Store ReplayGain track gain in REPLAYGAIN_TRACK_GAIN field, relative to
+  stream header gain
