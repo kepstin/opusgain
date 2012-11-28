@@ -88,6 +88,8 @@ typedef struct ogg_page {
 
 typedef struct ogg_packet_page {
 	ogg_page page;
+	size_t offset;
+	size_t length;
 	struct ogg_packet_page *next;
 } ogg_packet_page;
 
@@ -108,6 +110,8 @@ typedef struct ogg_stream_io_functions {
 struct ogg_stream {
 	ogg_stream_io_functions *io;
 	void *priv;
+	ogg_packet *current;
+	size_t offset;
 };
 
 /**
@@ -180,7 +184,8 @@ void ogg_packet_clear(ogg_packet *packet);
  * Open a local file for use with the ogg packet api
  *
  * Returns: A newly allocated #ogg_stream, which must be freed with
- * ogg_stream_file_close()
+ * ogg_stream_file_close() or %NULL on error, in which case #ogg_error will
+ * have a message.
  */
 ogg_stream *ogg_stream_file_open(const char *filename);
 

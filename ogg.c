@@ -16,6 +16,7 @@
 #include "ogg.h"
 #include "bits.h"
 
+#include <errno.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -273,6 +274,8 @@ error:
 void ogg_packet_init(ogg_packet *packet) {
 	packet->data_len = 0;
 	ogg_page_init(&packet->first.page);
+	packet->first.offset = 0;
+	packet->first.length = 0;
 	packet->first.next = NULL;
 }
 
@@ -296,6 +299,15 @@ void ogg_packet_clear(ogg_packet *packet) {
 }
 
 int ogg_packet_read(ogg_packet *packet) {
+}
+
+static ogg_stream *ogg_stream_new(void) {
+	ogg_stream *stream = calloc(1, sizeof (ogg_stream));
+	return stream;
+}
+
+static void ogg_stream_free(ogg_stream *stream) {
+	free(stream);
 }
 
 static size_t ogg_stream_file_read(ogg_stream *stream, uint8_t *buffer, size_t len) {
@@ -324,3 +336,28 @@ static ogg_stream_io_functions ogg_stream_file_functions = {
 	ogg_stream_file_tell,
 	ogg_stream_file_seek
 };
+
+ogg_stream *ogg_stream_file_open(const char *filename) {
+	ogg_stream *stream;
+	FILE *file;
+	
+	file = fopen(filename, "r+");
+	if (!file) {
+		ogg_error = strerror(errno);
+		return NULL;
+	}
+	
+	stream = ogg_stream_new();
+	stream->io = &ogg_stream_file_functions;
+	stream->priv = file;
+	
+	return stream;
+}
+
+void ogg_stream_file_close(ogg_stream *stream) {
+	FILE *file = stream->priv;
+	
+	fclose(file);
+	
+	ogg_stream_free(stream);
+}
