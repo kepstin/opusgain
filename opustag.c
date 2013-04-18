@@ -22,7 +22,7 @@
 #include <string.h>
 
 int main(int argc, char *argv[]) {
-	FILE *opusfile = NULL, *outfile = NULL;
+	struct ogg_stream *infile = NULL, *outfile = NULL;
 	struct ogg_page header_page, tags_page;
 	int ret, err = 0;
 	uint32_t serial;
@@ -36,14 +36,14 @@ int main(int argc, char *argv[]) {
 		goto error;
 	}
 	
-	opusfile = fopen(argv[1], "rb");
-	if (!opusfile) {
-		perror("Failed to open input file");
+	infile = ogg_stream_file_open_read(argv[1]);
+	if (!infile) {
+		fprintf(stderr, "Failed to open input file: %s\n", ogg_error);
 		err = 1;
 		goto error;
 	}
 	
-	ret = ogg_page_read(&header_page, opusfile);
+	ret = ogg_page_read(&header_page, infile);
 	if (ret != OGG_SUCCESS) {
 		fprintf(stderr, "Failed to read Ogg Page: %s\n", ogg_error);
 		err = 1;
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
 	printf("OggOpus found in stream serial %#x\n", header_page.serial);
 
 
-	ret = ogg_page_read(&tags_page, opusfile);
+	ret = ogg_page_read(&tags_page, infile);
 	if (ret != OGG_SUCCESS) {
 		fprintf(stderr, "Failed to read Ogg Page: %s\n", ogg_error);
 		err = 1;
@@ -75,9 +75,9 @@ int main(int argc, char *argv[]) {
 	
 	fprintf(stderr, "Page contains %d data bytes\n", tags_page.data_len);
 
-	outfile = fopen(argv[2], "wb");
+	outfile = ogg_stream_file_open(argv[2]);
 	if (!outfile) {
-		perror("Failed to open output file");
+		fprintf(stderr, "Failed to open output file: %s\n", ogg_error);
 		err = 1;
 		goto error;
 	}
@@ -98,13 +98,13 @@ int main(int argc, char *argv[]) {
 error:
 
 	if (outfile) {
-		fclose(outfile);
+		ogg_stream_file_close(outfile);
 		outfile = NULL;
 	}
 	
-	if (opusfile) {
-		fclose(opusfile);
-		opusfile = NULL;
+	if (infile) {
+		ogg_stream_file_close(infile);
+		infile = NULL;
 	}
 
 	ogg_page_clear(&header_page);

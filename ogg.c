@@ -130,7 +130,7 @@ void ogg_page_clear(ogg_page *page) {
 	ogg_page_init(page);
 }
 
-int ogg_page_read(ogg_page *page, FILE *file) {
+int ogg_page_read(ogg_page *page, ogg_stream *stream) {
 	size_t read;
 	int i, err;
 	uint32_t crc32;
@@ -138,10 +138,10 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 	uint8_t segments;
 	
 	/* Save the current file offset (for in-place rewrites) */
-	page->offset = ftell(file);
+	page->offset = stream->io->tell(stream);
 	
 	/* Read the first (fixed) part of the page header */
-	read = fread(page_header, 1, OGG_PAGE_HEADER_SIZE, file);
+	read = stream->io->read(stream, page_header, OGG_PAGE_HEADER_SIZE);
 	if (read < OGG_PAGE_HEADER_SIZE) {
 		ogg_error = "Error reading page header";
 		err = OGG_INVALID;
@@ -165,7 +165,7 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 	segments = page_header[26];
 	
 	/* Read in the segment table */
-	read = fread(&page_header[OGG_PAGE_HEADER_SIZE], 1, segments, file);
+	read = stream->io->read(stream, &page_header[OGG_PAGE_HEADER_SIZE], segments);
 	if (read < segments) {
 		ogg_error = "Error reading segment table";
 		err = OGG_INVALID;
@@ -180,7 +180,7 @@ int ogg_page_read(ogg_page *page, FILE *file) {
 	
 	/* Read in the packet data */
 	page->data = malloc(page->data_len);
-	read = fread(page->data, 1, page->data_len, file);
+	read = stream->io->read(stream, page->data, page->data_len);
 	if (read < page->data_len) {
 		ogg_error = "Error reading page data";
 		err = OGG_INVALID;
@@ -206,7 +206,7 @@ error:
 	return err;
 }
 
-int ogg_page_write(const ogg_page *page, FILE *file)
+int ogg_page_write(const ogg_page *page, ogg_stream *stream)
 {
 	int err;
 	uint8_t page_header[OGG_PAGE_HEADER_SIZE + OGG_PAGE_MAX_SEGMENTS];
@@ -262,8 +262,8 @@ int ogg_page_write(const ogg_page *page, FILE *file)
 	write_le32(&page_header[22], crc32);
 	
 	/* Write the page header and data */
-	fwrite(page_header, 1, OGG_PAGE_HEADER_SIZE + segments, file);
-	fwrite(page->data, 1, page->data_len, file);
+	stream->io->write(stream, page_header, OGG_PAGE_HEADER_SIZE + segments);
+	stream->io->write(stream, page->data, page->data_len);
 	
 	return OGG_SUCCESS;
 
@@ -337,11 +337,28 @@ static ogg_stream_io_functions ogg_stream_file_functions = {
 	ogg_stream_file_seek
 };
 
+ogg_stream *ogg_stream_file_open_read(const char *filename) {
+	ogg_stream *stream;
+	FILE *file;
+	
+	file = fopen(filename, "rb");
+	if (!file) {
+		ogg_error = strerror(errno);
+		return NULL;
+	}
+	
+	stream = ogg_stream_new();
+	stream->io = &ogg_stream_file_functions;
+	stream->priv = file;
+	
+	return stream;
+}
+
 ogg_stream *ogg_stream_file_open(const char *filename) {
 	ogg_stream *stream;
 	FILE *file;
 	
-	file = fopen(filename, "r+");
+	file = fopen(filename, "rb+");
 	if (!file) {
 		ogg_error = strerror(errno);
 		return NULL;

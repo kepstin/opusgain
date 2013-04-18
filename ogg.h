@@ -38,7 +38,7 @@
  * ogg_error_codes:
  * @OGG_SUCCESS: Everything is fine
  * @OGG_INVALID: An incoming Ogg stream contains invalid data
- * @OGG_MULTISTREAM: The Ogg container contains multiple streams
+ * @OGG_MULTI_STREAM: The Ogg container contains multiple streams
  * @OGG_BAD_SIZE: An #ogg_page contains a data amount that isn't allowed by spec
  */
 typedef enum {
@@ -140,26 +140,26 @@ void ogg_page_clear(ogg_page *page);
 /**
  * ogg_page_read:
  * @page: #ogg_page structure to save the read data into
- * @file: File to read the Ogg page from
+ * @stream: #ogg_stream to read the Ogg page from
  * 
  * Read the contents of an Ogg page from a file
  *
  * Returns: 0 on success, otherwise a value from #ogg_error_codes and #ogg_error
  * will contain a message
  */
-int ogg_page_read(ogg_page *page, FILE *file);
+int ogg_page_read(ogg_page *page, ogg_stream *stream);
 
 /**
  * ogg_page_write:
  * @page: An #ogg_page structure to write to a file
- * @file: The file to write the Ogg page to
+ * @file: #ogg_stream to write the Ogg page to
  *
  * Write the contents of an Ogg page to a file
  *
  * Returns: 0 on success, otherwise a value from #ogg_error_codes and #ogg_error
  * will contain a message
  */
-int ogg_page_write(const ogg_page *page, FILE *file);
+int ogg_page_write(const ogg_page *page, ogg_stream *stream);
 
 /**
  * ogg_packet_init:
@@ -176,6 +176,18 @@ void ogg_packet_init(ogg_packet *packet);
  * Free memory internally allocated for the Ogg packet, and reinitialize.
  */
 void ogg_packet_clear(ogg_packet *packet);
+
+/**
+ * ogg_stream_file_open_read:
+ * @filename: The path to a local ogg file
+ *
+ * Open a local file in read-only mode for use with the ogg packet api
+ *
+ * Returns: A newly allocated #ogg_stream which must be freed with
+ * ogg_stream_file_close(), or %NULL on an error - in which case #ogg_error
+ * will have a message.
+ */
+ogg_stream *ogg_stream_file_open_read(const char *filename);
 
 /**
  * ogg_stream_file_open:
